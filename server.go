@@ -7,7 +7,6 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/rand"
-	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -240,7 +239,7 @@ func udpRelay(errCh chan error, conf *util.Config) error {
 
 	defer ln.Close()
 
-	rb := make([]byte, UDP_BUFFER)
+	rb := make([]byte, 10)
 
 	for {
 		n, addr, err := ln.ReadFromUDP(rb)
@@ -273,26 +272,26 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 
 	// decrypt data here
 	if conf.IsServer {
-		hlen := make([]byte, 4)
-		if _, err := io.ReadFull(c, hlen); err != nil {
-			return err
-		}
-		var length int32
-		if err := binary.Read(bytes.NewReader(hlen), binary.BigEndian, &length); err != nil {
-			return err
-		}
-
-		all := make([]byte, length)
-		if _, err := io.ReadFull(c, all); err != nil {
-			return err
-		}
-		pt, err := conf.Encryption.Decrypt(all)
+		// read connect info
+		buf := make([]byte, TCP_BUFFER)
+		n, err := io.ReadAtLeast(c, buf, 1)
 		if err != nil {
+			if err != io.EOF {
+				return err
+			}
+		}
+				
+		pt, err := conf.Encryption.Decrypt(buf[:n])
+
+		// most of annoying requests are blocked here if cipheretext length is wrong
+		// or, of course, bad credentials a client provided
+		if err != nil { 
+			loggingInfo(context.Background(), "%v: annoying requests or bad password from %v", err, c.RemoteAddr())
 			return nil
 		}
 
 		r := bytes.NewReader(pt)
-		sock, err := parseHeader(r, false, int(length))
+		sock, err := parseHeader(r, false, int(n))
 
 		// this is important. use read buffer so that we can refresh data
 		sock.reqbuf = c
@@ -337,8 +336,6 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 		// could not parse a header?
 		return handleNetworkError(c, err)
 	}
-
-	// loggingInfo(ctx, "tcp request: remote=%v", sock)
 
 	sock.ctx = ctx // stock context
 
@@ -513,28 +510,28 @@ func handleConnect(c net.Conn, sock *socket, conf *util.Config) error {
 	if err != nil {
 		return handleNetworkError(c, err) // may be server donw, server unreachable ...
 	}
-
+	
 	cpt, err := conf.Encryption.Encrypt(buf.Bytes())
 	if err != nil {
 		panic(err)
 	}
 
-	var e []byte
-	h := bytes.NewBuffer(e)
-	// 4 byte for length of whole data size
-	l := len(cpt)
-	info := make([]byte, 4)
-	binary.BigEndian.PutUint32(info, uint32(l))
-
-	// 32 bits for data length
-	if _, err := h.Write(info); err != nil {
-		panic(err)
-	}
-	if _, err := h.Write(cpt); err != nil {
-		panic(err)
-	}
-
-	if _, err := dst.Write(h.Bytes()); err != nil {
+	// var e []byte
+	// h := bytes.NewBuffer(e)
+	// // 4 byte for length of whole data size
+	// l := len(cpt)
+	// info := make([]byte, 4)
+	// binary.BigEndian.PutUint32(info, uint32(l))
+	// 
+	// // 32 bits for data length
+	// if _, err := h.Write(info); err != nil {
+	// 	panic(err)
+	// }
+	// if _, err := h.Write(cpt); err != nil {
+	// 	panic(err)
+	// }	
+	
+	if _, err := dst.Write(cpt); err != nil {
 		return err
 	}
 
