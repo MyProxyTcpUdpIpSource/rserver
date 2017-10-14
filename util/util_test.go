@@ -104,3 +104,20 @@ func TestDecrypt(t *testing.T) {
 		log.Println(string(d))
 	}
 }
+
+func TestGetAServer(t *testing.T) {
+	conf := &Config{
+		Servers: []string{
+			"0.0.0.0",
+			"1.1.1.1",
+			"8.8.8.8",
+			"45.32.211.3",
+			"5.2.11.4",
+		},
+	}
+	s := conf.GetAServer()
+	if s == "" {
+		t.Error("cannot get a server")
+	}
+	t.Log(s)
+}

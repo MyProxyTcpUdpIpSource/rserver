@@ -10,9 +10,13 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
+	cr "crypto/rand"
 	"errors"
 	"io"
+	"os"
+	"encoding/json"
+	mr "math/rand"
+	"time"
 )
 
 var Servers = []string{"8.8.8.8", "8.8.4.4"}
@@ -44,25 +48,51 @@ func DNSResolver() *net.Resolver {
 }
 
 type Config struct {
-	Servers   []string
+	Servers   []string `json:"servers"`
 
-	ServerPort int
-	ServerAddr string
-	IsClient bool
-	IsServer bool
-
-	LocalPort int
-	IsLocal   bool
-	IsRemote  bool
-
+	ServerPort int `json:"port"`
+	ServerAddr string `json:"address"`
+	IsClient bool `json:"isclient"`
+	IsServer bool `json:"isserver"`
+	Method string `json:"method"`
+	Password string `json:"password"`
+	RunAs string
 	Encryption *Crypto
 }
 
-func GetConf() *Config {
+func (c *Config) GetAServer() string {
+	if len(c.Servers) == 0 {
+		return ""
+	}
+	src := mr.NewSource(time.Now().UnixNano())
+	r := mr.New(src)
+	return c.Servers[r.Intn(len(c.Servers))]
+}
+
+func GetConf(path string) (*Config, error) {
 
 	c := &Config{}
+	// c.Servers = append(c.Servers, "0.0.0.0")
+	f, err := os.OpenFile(path, os.O_RDONLY, 0600)
+	if err != nil {
+		return nil, nil
+	}
 
-	return c
+	data := make([]byte, 1024)
+	n, err := f.Read(data)
+	if err != nil {
+		panic(err)
+	}
+	data = data[:n]
+	
+	if err := json.Unmarshal(data, &c); err != nil {
+		return nil, err
+	}
+	cpt := &Crypto{Password: c.Password, Method: c.Method}
+	
+	c.Encryption = cpt
+	
+	return c, nil
 }
 
 var methods = []struct {
@@ -81,8 +111,8 @@ type method struct {
 }
 
 type Crypto struct {
-	Password string
-	Method   string
+	Password string `json:"password"`
+	Method   string `json:"method"`
 }
 
 func GetMethodInfo(s string) (*method, error) {
@@ -161,7 +191,7 @@ func (c *Crypto) Encrypt(plaintext []byte) ([]byte, error) {
 	ciphertext := make([]byte, m.ivLen+len(plaintext))
 	iv := ciphertext[:m.ivLen]
 
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+	if _, err := io.ReadFull(cr.Reader, iv); err != nil {
 		return nil, err
 	}
 
