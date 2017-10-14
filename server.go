@@ -272,33 +272,41 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 
 	// decrypt data here
 	if conf.IsServer {
-		// read connect info
-		buf := make([]byte, 32)
-		n, err := io.ReadAtLeast(c, buf, 1)
-		if err != nil {
+		// two bytes for length
+		h := make([]byte, 2)
+
+		if _, err := io.ReadAtLeast(c, h, 1); err != nil {
 			if err != io.EOF {
 				return err
 			}
 		}
 
-		pt, err := conf.Encryption.Decrypt(buf[:n])
+		l := int(h[0])<<16 | int(h[1])
+
+		hbuf := make([]byte, l)
+		if _, err := io.ReadAtLeast(c, hbuf, 1); err != nil {
+			if err != io.EOF {
+				return nil
+			}
+		}
+
+		pt, err := conf.Encryption.Decrypt(hbuf)
+
 		// most of annoying requests are blocked here if cipheretext length is wrong
-		// or, of course, bad credentials a client provided
+		// or, of course, bad password a client provided
 		if err != nil {
 			loggingInfo(context.Background(), "%v: annoying requests or bad password from %v", err, c.RemoteAddr())
 			return nil
 		}
-
 		r := bytes.NewReader(pt)
-		sock, err := parseHeader(r, false, int(n))
+		sock, err := parseHeader(r, false)
 
-		// this is important. use read buffer so that we can refresh data
-		sock.reqbuf = c
 		loggingInfo(context.Background(), "connecting from %v", c.RemoteAddr())
 		if err != nil {
 			return err
 		}
-
+		// this is important. use read buffer so that we can refresh data
+		sock.reqbuf = c
 		return remoteRead(c, sock)
 	}
 
@@ -329,7 +337,7 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 
 	ctx := newContext(context.Background(), newID()) // context for logging.
 
-	sock, err := parseHeader(c, true, 0)
+	sock, err := parseHeader(c, true)
 
 	if err != nil {
 		// could not parse a header?
@@ -508,13 +516,32 @@ func handleConnect(c net.Conn, sock *socket, conf *util.Config) error {
 	if err != nil {
 		return handleNetworkError(c, err) // may be server donw, server unreachable ...
 	}
+
+	// start encryption
 	cpt, err := conf.Encryption.Encrypt(buf.Bytes())
 
 	if err != nil {
 		panic(err)
 	}
 
-	if _, err := dst.Write(cpt); err != nil {
+	// let clients know the length of data
+	var t []byte
+
+	newbuf := bytes.NewBuffer(t)
+
+	// first two bytes are for length of data
+	l := []byte{0, 0}
+	l[0] = byte(len(cpt) >> 16)
+	l[1] = byte(len(cpt) & 0xff)
+	if _, err := newbuf.Write(l); err != nil {
+		return err
+	}
+
+	if _, err := newbuf.Write(cpt); err != nil {
+		return err
+	}
+
+	if _, err := dst.Write(newbuf.Bytes()); err != nil {
 		return err
 	}
 
@@ -563,7 +590,7 @@ var hang = func(i ...interface{}) { log.Println("hang ", i) }
 
 // parseHeader parses header and gives a socket back.
 // unknow requests should be blocked here.
-func parseHeader(r io.Reader, islocal bool, offset int) (*socket, error) {
+func parseHeader(r io.Reader, islocal bool) (*socket, error) {
 	sock := &socket{}
 
 	sock.reqbuf = r
@@ -628,8 +655,10 @@ func parseHeader(r io.Reader, islocal bool, offset int) (*socket, error) {
 			ips, err := util.DnsResolver(string(dom), sock.ctx)
 			if err != nil {
 				// TODO: TODO handle errors
-				panic(err)
+				loggingInfo(context.Background(), "ERROR: %v %v", err, string(dom))
+				return nil, err
 			}
+
 			ip := net.IP(ips[0])
 
 			switch {

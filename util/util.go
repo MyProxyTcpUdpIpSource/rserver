@@ -23,6 +23,12 @@ func DnsResolver(host string, ctx context.Context) ([]net.IP, error) {
 	var ips []net.IP
 
 	ips, err := net.LookupIP(host)
+	
+	// failed to parse doamin?
+	if len(ips) == 0 {
+		return nil, errors.New("DnsResolver: cannot parse doamin")
+	}
+	
 	if err != nil {
 		return ips, nil
 	}
@@ -141,6 +147,7 @@ func (c *Crypto) Encrypt(plaintext []byte) ([]byte, error) {
 			plaintext = append(plaintext, 0x0)
 		}
 	}
+
 	m, err := GetMethodInfo(c.Method)
 
 	if err != nil {
