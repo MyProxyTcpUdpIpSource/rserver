@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/luSunn/rserver/util"	
+	"github.com/luSunn/rserver/util"
 )
 
 var PROGRAM = ""
@@ -150,7 +150,7 @@ func parseArgs() args {
 	flag.IntVar(&a.serverPort, "p", 1080, "server port")
 	flag.StringVar(&a.method, "m", "aes-256-cfb", "encryption method")
 	flag.StringVar(&a.config, "C", "./config.json", "path to config file")
-	flag.StringVar(&a.password, "P", "I-am-having-an-existential-crisis", "password to authorise clients")	
+	flag.StringVar(&a.password, "P", "I-am-having-an-existential-crisis", "password to authorise clients")
 
 	flag.Usage = Usage
 	flag.Parse()
@@ -273,19 +273,18 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 	// decrypt data here
 	if conf.IsServer {
 		// read connect info
-		buf := make([]byte, TCP_BUFFER)
+		buf := make([]byte, 32)
 		n, err := io.ReadAtLeast(c, buf, 1)
 		if err != nil {
 			if err != io.EOF {
 				return err
 			}
 		}
-				
-		pt, err := conf.Encryption.Decrypt(buf[:n])
 
+		pt, err := conf.Encryption.Decrypt(buf[:n])
 		// most of annoying requests are blocked here if cipheretext length is wrong
 		// or, of course, bad credentials a client provided
-		if err != nil { 
+		if err != nil {
 			loggingInfo(context.Background(), "%v: annoying requests or bad password from %v", err, c.RemoteAddr())
 			return nil
 		}
@@ -302,7 +301,7 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 
 		return remoteRead(c, sock)
 	}
-	
+
 	errCh := make(chan error, 2)
 
 	head := make([]byte, 3)
@@ -313,7 +312,7 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 		_, err := io.ReadAtLeast(reqbuf, h, 2)
 		ech <- err
 
-		// say hi to a client if everything fine. 
+		// say hi to a client if everything fine.
 		_, er := c.Write([]byte{5, 0})
 
 		ech <- er
@@ -355,7 +354,6 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 			}
 		} else {
 			// read and decrypt
-			log.Println(head)
 		}
 	case uint8(head[1]) == BINDCOMD:
 		return handleBind(c, sock, conf)
@@ -510,27 +508,12 @@ func handleConnect(c net.Conn, sock *socket, conf *util.Config) error {
 	if err != nil {
 		return handleNetworkError(c, err) // may be server donw, server unreachable ...
 	}
-	
 	cpt, err := conf.Encryption.Encrypt(buf.Bytes())
+
 	if err != nil {
 		panic(err)
 	}
 
-	// var e []byte
-	// h := bytes.NewBuffer(e)
-	// // 4 byte for length of whole data size
-	// l := len(cpt)
-	// info := make([]byte, 4)
-	// binary.BigEndian.PutUint32(info, uint32(l))
-	// 
-	// // 32 bits for data length
-	// if _, err := h.Write(info); err != nil {
-	// 	panic(err)
-	// }
-	// if _, err := h.Write(cpt); err != nil {
-	// 	panic(err)
-	// }	
-	
 	if _, err := dst.Write(cpt); err != nil {
 		return err
 	}
