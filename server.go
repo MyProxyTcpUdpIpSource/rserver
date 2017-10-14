@@ -23,10 +23,6 @@ import (
 	"github.com/luSunn/rserver/util"
 )
 
-var PROGRAM = ""
-
-var VERSION = "0.0.1"
-
 const (
 	// address types
 	IPv4   uint8 = 1
@@ -121,7 +117,8 @@ func (s *socket) String() string {
 var Usage = func() {
 	text := `rserver- network realy server in Go
 Usage:
-rserver rserver [-c -a 127.0.0.1 -p 1080 -s 0000:1a04::ff3c:23bv:fe92:fff ] [-r -a 0000:1a04::ff3c:23bv:fe92:fff -p 5000]
+
+rserver rserver [-c -a 127.0.0.1 -p 1080 -s <remote-server> ] [-r -a <remote-server> -p 5000] [-C <path-to-config>]
 
 `
 	fmt.Fprintf(os.Stderr, text)
@@ -143,14 +140,14 @@ func parseArgs() args {
 	var a args
 
 	// parse flags
-	flag.BoolVar(&a.isClient, "c", false, "run as `client`")
-	flag.BoolVar(&a.isServer, "r", false, "run as `server`")
+	flag.BoolVar(&a.isClient, "c", false, "run as client")
+	flag.BoolVar(&a.isServer, "r", false, "run as server")
 	flag.StringVar(&a.remoteServer, "s", "", "remote server address is required when running as client.")
 	flag.StringVar(&a.serverAddr, "a", "127.0.0.1", "server address")
 	flag.IntVar(&a.serverPort, "p", 1080, "server port")
 	flag.StringVar(&a.method, "m", "aes-256-cfb", "encryption method")
 	flag.StringVar(&a.config, "C", "./config.json", "path to config file")
-	flag.StringVar(&a.password, "P", "I-am-having-an-existential-crisis", "password to authorise clients")
+	flag.StringVar(&a.password, "P", "I-am-having-an-existential-crisis", "passphrase to authorise clients")
 
 	flag.Usage = Usage
 	flag.Parse()
@@ -163,37 +160,50 @@ func parseArgs() args {
 }
 
 func main() {
-	ctx := context.Background()
 	args := parseArgs()
 
 	conf := &util.Config{}
 
-	// load Crypto along with password and method
-	crypt := &util.Crypto{
-		Password: args.password,
-		Method:   args.method,
+	c, err := util.GetConf(args.config)
+	if err != nil {
+		panic(err)
 	}
 
-	conf.Encryption = crypt
+	if c.IsClient || c.IsServer {
+		conf = c
+	} else {
+		// load Crypto along with password and method
+		crypt := &util.Crypto{
+			Password: args.password,
+			Method:   args.method,
+		}
 
-	conf.ServerPort = args.serverPort
-	conf.ServerAddr = args.serverAddr
+		conf.Encryption = crypt
 
-	if args.isClient {
-		if args.remoteServer == "" {
+		conf.ServerPort = args.serverPort
+		conf.ServerAddr = args.serverAddr
+		conf.Servers = []string{args.remoteServer}
+		conf.ServerPort = args.serverPort
+	}
+	
+	if conf.IsClient {
+		if len(conf.Servers) == 0 {
 			fmt.Fprintf(os.Stderr, "remote server address is required when running as client.\n\n")
 			flag.Usage()
 			os.Exit(1)
 		}
-		loggingInfo(ctx, "server is up and running in client mode  port:%d", args.serverPort)
+		
 		conf.IsClient = true
-		conf.Servers = append(conf.Servers, args.remoteServer)
-
-	} else if args.isServer {
-		loggingInfo(ctx, "server is up and running in server mode  port:%d", args.serverPort)
+		conf.RunAs = "client"
+		
+	} else {
+		
 		conf.IsServer = true
+		conf.RunAs = "server"
+		
 	}
-
+	fmt.Fprintf(os.Stderr, `Server is up and running as %s port %d
+`, conf.RunAs, conf.ServerPort)
 	eventLoop(conf)
 }
 
@@ -496,7 +506,7 @@ func handleConnect(c net.Conn, sock *socket, conf *util.Config) error {
 
 	rmsock.network = "tcp"
 
-	if host, p, err := net.SplitHostPort(conf.Servers[0]); err != nil {
+	if host, p, err := net.SplitHostPort(conf.GetAServer()); err != nil {
 		return errors.New(fmt.Sprintf("bad remote server: %v", rmsock))
 	} else {
 		rmsock.ip = net.ParseIP(host)
