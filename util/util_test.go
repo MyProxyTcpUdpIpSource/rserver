@@ -7,10 +7,7 @@ import (
 )
 
 var hosts = []string{
-	"facebook.com",
 	"google.com",
-	"soundcloud.com",
-	"news.ycombinator.com",
 	"posteo.de",
 	"httpbin.org",
 }
@@ -63,13 +60,11 @@ func TestGetCipher(t *testing.T) {
 }
 
 var testData = []string{
-	"you suck",
 	"I wish I could fly like a bird.",
 	"You have such a wonderful personality",
 	"I love Japan and I told you a lie",
 	"A problem with me being Japanese.",
-	"You suck so hard so please die.",
-	"It's fine because I use Emacs over cats.",
+	"I like cats over dogs",
 }
 
 func TestEncrypt(t *testing.T) {
@@ -108,11 +103,11 @@ func TestDecrypt(t *testing.T) {
 func TestGetAServer(t *testing.T) {
 	conf := &Config{
 		Servers: []string{
-			"0.0.0.0",
-			"1.1.1.1",
-			"8.8.8.8",
-			"45.32.211.3",
-			"5.2.11.4",
+			"0.0.0.0:1080",
+			"1.1.1.1:1080",
+			"8.8.8.8:1080",
+			"45.32.211.3:1080",
+			"5.2.11.4:1080",
 		},
 	}
 	s := conf.GetAServer()

@@ -43,13 +43,22 @@ func DnsResolver(host string, ctx context.Context) ([]net.IP, error) {
 	return ips, nil
 }
 
-func DNSResolver() *net.Resolver {
-	return &net.Resolver{PreferGo: false, StrictErrors: false, Dial: nil}
+func DNSResolver(p bool) *net.Resolver {
+	r := &net.Resolver{}
+	switch (p) {
+	case p:
+		r.PreferGo = true
+		r.StrictErrors = true
+	}
+	return r
+}
+
+func LookupIP(r *net.Resolver, ctx context.Context, host string) ([]net.IPAddr, error){
+	return r.LookupIPAddr(ctx, host)
 }
 
 type Config struct {
 	Servers   []string `json:"servers"`
-
 	ServerPort int `json:"port"`
 	ServerAddr string `json:"address"`
 	IsClient bool `json:"isclient"`
@@ -134,7 +143,6 @@ func GetMethodInfo(s string) (*method, error) {
 }
 
 func (c *Crypto) GetCipher() (cipher.Block, error) {
-
 	m, err := GetMethodInfo(c.Method)
 
 	if err != nil {
