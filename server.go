@@ -82,17 +82,12 @@ func fromContext(ctx context.Context) (RequestID, bool) {
 
 func loggingInfo(c context.Context, msg string, i ...interface{}) {
 	var line bytes.Buffer
-	line.WriteString("\033[0;32m")
 	line.WriteString(time.Now().UTC().Format("[2006-01-02T15:04:05.999] "))
-	line.WriteString("\033[0m")
 	if reqID, ok := fromContext(c); ok {
-		fmt.Fprintf(&line, "\033[1;35m")
 		fmt.Fprintf(&line, "[%s] ", reqID)
 	}
-	fmt.Fprintf(&line, "\033[1;37m")
 	fmt.Fprintf(&line, msg, i...)
 	fmt.Println(line.String())
-	fmt.Fprintf(&line, "\033[0m")
 }
 
 type socket struct {
@@ -179,29 +174,27 @@ func main() {
 		}
 
 		conf.Encryption = crypt
-
 		conf.ServerPort = args.serverPort
 		conf.ServerAddr = args.serverAddr
 		conf.Servers = []string{args.remoteServer}
 		conf.ServerPort = args.serverPort
 	}
-	
+
 	if conf.IsClient {
 		if len(conf.Servers) == 0 {
 			fmt.Fprintf(os.Stderr, "remote server address is required when running as client.\n\n")
 			flag.Usage()
 			os.Exit(1)
 		}
-		
+
 		conf.IsClient = true
 		conf.RunAs = "client"
-		
+
 	} else {
-		
 		conf.IsServer = true
 		conf.RunAs = "server"
-		
 	}
+
 	fmt.Fprintf(os.Stderr, `Server is up and running as %s port %d
 `, conf.RunAs, conf.ServerPort)
 	eventLoop(conf)
@@ -209,7 +202,6 @@ func main() {
 
 // eventLoop launches udp and tcp relay goroutines to listen to both of them.
 func eventLoop(conf *util.Config) error {
-
 	errCh := make(chan error)
 
 	go udpRelay(errCh, conf)
@@ -231,31 +223,40 @@ func udpRelay(errCh chan error, conf *util.Config) error {
 
 	port := conf.ServerPort
 	addr := fmt.Sprintf("%s:%d", conf.ServerAddr, port)
-	if conf.IsClient {
-		udpadr, err = net.ResolveUDPAddr("udp", addr)
-	} else {
-		udpadr, err = net.ResolveUDPAddr("udp", addr)
-	}
+	udpadr, err = net.ResolveUDPAddr("udp", addr)
 
 	if err != nil {
 		loggingInfo(ctx, "ERROR udpRelay: %v", err)
 		return err
 	}
 
-	ln, err := net.ListenUDP("udp", udpadr)
+	conn, err := net.ListenUDP("udp", udpadr)
 	if err != nil {
 		panic(err)
 	}
 
-	defer ln.Close()
+	defer conn.Close()
 
-	rb := make([]byte, 10)
-
+	rb := make([]byte, UDP_BUFFER)
+	d := make(chan []byte)
 	for {
-		n, addr, err := ln.ReadFromUDP(rb)
+		n, addr, err := conn.ReadFromUDP(rb)
 		errCh <- err
-		ctx := newContext(context.Background(), newID())
-		loggingInfo(ctx, "udp request: addr=%v data=%v", addr, rb[:n])
+		ctx = newContext(context.Background(), newID())		
+
+		go func(p chan []byte, d []byte) {
+			p <- d
+		}(d, rb[:n])
+
+		handleUDP(d, conn, addr, ctx)
+	}
+}
+
+func handleUDP(d chan []byte, c *net.UDPConn, addr *net.UDPAddr, ctx context.Context) {
+	select {
+	case data := <-d:
+		loggingInfo(ctx, "udp request: addr=%v data=%v", addr, data)
+		c.Write([]byte{5,0})
 	}
 }
 
@@ -303,7 +304,7 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 		pt, err := conf.Encryption.Decrypt(hbuf)
 
 		// most of annoying requests are blocked here if cipheretext length is wrong
-		// or, of course, bad password a client provided
+		// or, of course, bad password a client provided is wrong
 		if err != nil {
 			loggingInfo(context.Background(), "%v: annoying requests or bad password from %v", err, c.RemoteAddr())
 			return nil
@@ -344,7 +345,7 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 	if head[0] != uint8(5) { // seems illegal request?
 		return nil
 	}
-
+	
 	ctx := newContext(context.Background(), newID()) // context for logging.
 
 	sock, err := parseHeader(c, true)
@@ -361,7 +362,7 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 		return err
 	}
 
-	switch { // handle stagings
+	switch { // handle stagings		
 	case uint8(head[1]) == CONNECTCMD:
 		loggingInfo(sock.ctx, "stream")
 
@@ -387,19 +388,19 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 }
 
 // remoteRead reads data from clients and send it back to clients.
-func remoteRead(w io.Writer, sock *socket) error {
+func remoteRead(c net.Conn, sock *socket) error {
 	dst, err := sock.dial()
 
 	if err != nil {
-		loggingInfo(context.Background(), "ERROR: %v", err)
-		return handleNetworkError(dst, err)
+		loggingInfo(context.Background(), "remoteRead: ERROR: %v", err)
+		return handleNetworkError(c, err)
 	}
 
 	defer dst.Close()
 
 	errCh := make(chan error, 2)
 	go writeToSock(dst, sock.reqbuf, errCh, sock.ctx)
-	go writeToSock(w, dst, errCh, sock.ctx)
+	go writeToSock(c, dst, errCh, sock.ctx)
 	return waitError(errCh, 2)
 }
 
@@ -421,10 +422,14 @@ type client interface {
 }
 
 func handleNetworkError(c client, e error) error {
-
 	err := e.Error()
 
-	switch {
+	// ??
+	if c == nil {
+		return e
+	}
+	
+	switch {	
 	case strings.Contains(err, "connection refused"):
 		writeSocks5Header(c, "", CONNECTIONREFUSED)
 	case strings.Contains(err, "network is unreachable"):
@@ -484,7 +489,7 @@ func handleConnect(c net.Conn, sock *socket, conf *util.Config) error {
 		return err
 	}
 
-	if sock.domain != nil { // domain
+	if sock.domain != nil { // domain length 1..255
 		if err := buf.WriteByte(uint8(len(sock.domain))); err != nil {
 			return err
 		}
@@ -668,9 +673,8 @@ func parseHeader(r io.Reader, islocal bool) (*socket, error) {
 				loggingInfo(context.Background(), "ERROR: %v %v", err, string(dom))
 				return nil, err
 			}
-
 			ip := net.IP(ips[0])
-
+			loggingInfo(ctx, "resolved: %v->%v", string(dom), ip)
 			switch {
 			case ip.To4() != nil:
 				sock.ip = ip.To4()
@@ -691,8 +695,6 @@ func parseHeader(r io.Reader, islocal bool) (*socket, error) {
 	sock.port = int(p[0])<<8 | int(p[1])
 	if sock.domain != nil {
 		loggingInfo(ctx, "domain: %v:%v", string(sock.domain), sock.port)
-	} else {
-		loggingInfo(ctx, "resolved ip: %v", sock)
 	}
 	return sock, nil
 }

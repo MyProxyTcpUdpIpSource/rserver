@@ -11,7 +11,7 @@ test:
 	@go test -v ./util/
 
 tar:
-	@rm -f app.gz.tar
+	@rm -f app.gz.tar rserver
 	@tar -vzcf app.gz.tar *
 
 .PHONY: tar
