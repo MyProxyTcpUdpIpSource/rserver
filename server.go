@@ -138,7 +138,7 @@ func parseArgs() args {
 	flag.BoolVar(&a.isClient, "c", false, "run as client")
 	flag.BoolVar(&a.isServer, "r", false, "run as server")
 	flag.StringVar(&a.remoteServer, "s", "", "remote server address is required when running as client.")
-	flag.StringVar(&a.serverAddr, "a", "127.0.0.1", "server address")
+	flag.StringVar(&a.serverAddr, "a", ":1080", "server address")
 	flag.IntVar(&a.serverPort, "p", 1080, "server port")
 	flag.StringVar(&a.method, "m", "aes-256-cfb", "encryption method")
 	flag.StringVar(&a.config, "C", "./config.json", "path to config file")
@@ -164,7 +164,7 @@ func main() {
 		panic(err)
 	}
 
-	if c.IsClient || c.IsServer {
+	if !(args.isClient || args.isServer) {
 		conf = c
 	} else {
 		// load Crypto along with password and method
@@ -174,7 +174,7 @@ func main() {
 		}
 
 		conf.Encryption = crypt
-		conf.ServerPort = args.serverPort
+		// conf.ServerPort = args.serverPort
 		conf.ServerAddr = args.serverAddr
 		conf.Servers = []string{args.remoteServer}
 		conf.ServerPort = args.serverPort
@@ -195,8 +195,8 @@ func main() {
 		conf.RunAs = "server"
 	}
 
-	fmt.Fprintf(os.Stderr, `Server is up and running as %s port %d
-`, conf.RunAs, conf.ServerPort)
+	fmt.Fprintf(os.Stderr, `Server is up and running as %s address: %s
+`, conf.RunAs, conf.ServerAddr)
 	eventLoop(conf)
 }
 
@@ -204,7 +204,7 @@ func main() {
 func eventLoop(conf *util.Config) error {
 	errCh := make(chan error)
 
-	go udpRelay(errCh, conf)
+	// go udpRelay(errCh, conf)
 	go tcpRelay(errCh, conf)
 
 	for {
@@ -221,8 +221,9 @@ func udpRelay(errCh chan error, conf *util.Config) error {
 	var err error
 	var udpadr *net.UDPAddr
 
-	port := conf.ServerPort
-	addr := fmt.Sprintf("%s:%d", conf.ServerAddr, port)
+	// port := conf.ServerPort
+	addr := conf.ServerAddr
+
 	udpadr, err = net.ResolveUDPAddr("udp", addr)
 
 	if err != nil {
@@ -252,21 +253,26 @@ func udpRelay(errCh chan error, conf *util.Config) error {
 	}
 }
 
-func handleUDP(d chan []byte, c *net.UDPConn, addr *net.UDPAddr, ctx context.Context) {
+func handleUDP(d chan []byte, c *net.UDPConn, addr *net.UDPAddr, ctx context.Context) error {
 	select {
 	case data := <-d:
 		loggingInfo(ctx, "udp request: addr=%v data=%v", addr, data)
-		c.Write([]byte{5,0})
+		sock, err := parseHeader(c, true)
+		if sock == nil || err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func tcpRelay(errCh chan error, conf *util.Config) error {
-	port := conf.ServerPort
-	addr := fmt.Sprintf("%s:%d", conf.ServerAddr, port)
+	// port := conf.ServerPort
+	// addr := fmt.Sprintf("%s:%d", conf.ServerAddr, port)
+	addr := conf.ServerAddr
 
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	defer ln.Close()
 	for {
