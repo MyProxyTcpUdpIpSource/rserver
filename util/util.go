@@ -65,6 +65,8 @@ type Config struct {
 	IsServer bool `json:"isserver"`
 	Method string `json:"method"`
 	Password string `json:"password"`
+	Logfile string `json:"logfile"`
+	Verbose int `json:"verbose"`
 	RunAs string
 	Encryption *Crypto
 }
@@ -81,7 +83,7 @@ func (c *Config) GetAServer() string {
 func GetConf(path string) (*Config, error) {
 
 	c := &Config{}
-	// c.Servers = append(c.Servers, "0.0.0.0")
+
 	f, err := os.OpenFile(path, os.O_RDONLY, 0600)
 	if err != nil {
 		return nil, nil
@@ -96,6 +98,10 @@ func GetConf(path string) (*Config, error) {
 	
 	if err := json.Unmarshal(data, &c); err != nil {
 		return nil, err
+	}
+	// avoid 'no such file or directory error'
+	if c.Logfile == "" {
+		c.Logfile = "/var/log/rserver.log"
 	}
 	cpt := &Crypto{Password: c.Password, Method: c.Method}
 	
