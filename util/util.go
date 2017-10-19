@@ -11,11 +11,11 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	cr "crypto/rand"
+	"encoding/json"
 	"errors"
 	"io"
-	"os"
-	"encoding/json"
 	mr "math/rand"
+	"os"
 	"time"
 )
 
@@ -27,12 +27,12 @@ func DnsResolver(host string, ctx context.Context) ([]net.IP, error) {
 	var ips []net.IP
 
 	ips, err := net.LookupIP(host)
-	
+
 	// failed to parse doamin?
 	if len(ips) == 0 {
 		return nil, errors.New("DnsResolver: cannot parse doamin")
 	}
-	
+
 	if err != nil {
 		return ips, nil
 	}
@@ -45,7 +45,7 @@ func DnsResolver(host string, ctx context.Context) ([]net.IP, error) {
 
 func DNSResolver(p bool) *net.Resolver {
 	r := &net.Resolver{}
-	switch (p) {
+	switch p {
 	case p:
 		r.PreferGo = true
 		r.StrictErrors = true
@@ -53,21 +53,21 @@ func DNSResolver(p bool) *net.Resolver {
 	return r
 }
 
-func LookupIP(r *net.Resolver, ctx context.Context, host string) ([]net.IPAddr, error){
+func LookupIP(r *net.Resolver, ctx context.Context, host string) ([]net.IPAddr, error) {
 	return r.LookupIPAddr(ctx, host)
 }
 
 type Config struct {
-	Servers   []string `json:"servers"`
-	ServerPort int `json:"port"`
-	ServerAddr string `json:"address"`
-	IsClient bool `json:"isclient"`
-	IsServer bool `json:"isserver"`
-	Method string `json:"method"`
-	Password string `json:"password"`
-	Logfile string `json:"logfile"`
-	Verbose int `json:"verbose"`
-	RunAs string
+	Servers    []string `json:"servers"`
+	ServerPort int      `json:"port"`
+	ServerAddr string   `json:"address"`
+	IsClient   bool     `json:"isclient"`
+	IsServer   bool     `json:"isserver"`
+	Method     string   `json:"method"`
+	Password   string   `json:"password"`
+	Logfile    string   `json:"logfile"`
+	Verbose    int      `json:"verbose"`
+	RunAs      string
 	Encryption *Crypto
 }
 
@@ -95,7 +95,7 @@ func GetConf(path string) (*Config, error) {
 		panic(err)
 	}
 	data = data[:n]
-	
+
 	if err := json.Unmarshal(data, &c); err != nil {
 		return nil, err
 	}
@@ -104,9 +104,9 @@ func GetConf(path string) (*Config, error) {
 		c.Logfile = "/var/log/rserver.log"
 	}
 	cpt := &Crypto{Password: c.Password, Method: c.Method}
-	
+
 	c.Encryption = cpt
-	
+
 	return c, nil
 }
 
@@ -114,8 +114,8 @@ var methods = []struct {
 	key           string
 	keyLen, ivLen int
 }{
-	{"aes-192-cfb", 24, 16},
 	{"aes-128-cfb", 16, 16},
+	{"aes-192-cfb", 24, 16},
 	{"aes-256-cfb", 32, 16},
 }
 
@@ -155,7 +155,7 @@ func (c *Crypto) GetCipher() (cipher.Block, error) {
 		return nil, err
 	}
 
-	// in case password length less than keyLen
+	// in case password length less than keyLen, so let's padding
 	// TODO: better way to padding here
 	if len(c.Password) < m.keyLen {
 		pad := m.keyLen - len(c.Password)
@@ -179,6 +179,9 @@ func (c *Crypto) GetCipher() (cipher.Block, error) {
 	return aes.NewCipher(buf.Bytes())
 }
 
+// Encrypt encrypts plaintext based on given key and key length.
+// The size of plaintext should not be multiple of block size because
+// of the padding.
 func (c *Crypto) Encrypt(plaintext []byte) ([]byte, error) {
 	if len(plaintext) == 0 {
 		return plaintext, nil
@@ -189,6 +192,7 @@ func (c *Crypto) Encrypt(plaintext []byte) ([]byte, error) {
 		p := aes.BlockSize - m
 		for i := 0; i < p; i++ {
 			plaintext = append(plaintext, 0x0)
+
 		}
 	}
 
@@ -215,6 +219,9 @@ func (c *Crypto) Encrypt(plaintext []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
+// Decrypt decrypts ciphertext into plaintext
+// The size ciphertext must be a multiple of the block size.
+// Otherwise padding will put on plaintext and doesn't much.
 func (c *Crypto) Decrypt(ciphertext []byte) ([]byte, error) {
 	if len(ciphertext) < aes.BlockSize {
 		return nil, errors.New("ciphertext too short")

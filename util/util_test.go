@@ -2,8 +2,8 @@ package util
 
 import (
 	"context"
-	"log"
 	"testing"
+	"bytes"
 )
 
 var hosts = []string{
@@ -27,6 +27,7 @@ var cryptoData = []Crypto{
 	{"A party at which only losers showed up.", "aes-192-cfb"},
 	{"Believe me I'm having such a wonderful day.", "aes-256-cfb"},
 	{"Dolphins can change a diaper under water.", "aes-256-cfb"},
+	{"wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww", "aes-256-cfb"},	
 }
 
 func TestGetMethod(t *testing.T) {
@@ -96,7 +97,22 @@ func TestDecrypt(t *testing.T) {
 	if d, err := c.Decrypt(data); err != nil {
 		t.Error(err)
 	} else {
-		log.Println(string(d))
+		t.Log(d)
+	}
+}
+
+
+func TestEncryptAndDecrypt(t *testing.T) {
+	// notice the size of plaintext is 64 bytes
+	plaintext := []byte("I think I should be more discrete and fly over Paris tomorrow...")
+	_plaintext := make([]byte, len(plaintext))
+	copy(_plaintext, plaintext)
+	crypt := &Crypto{"this-is-insecure-password", "aes-256-cfb"}
+	ciphertext, _ := crypt.Encrypt(plaintext)
+	text, _ := crypt.Decrypt(ciphertext)
+
+	if !(bytes.Equal(_plaintext, text)) {
+		t.Error("doesn't match")
 	}
 }
 
