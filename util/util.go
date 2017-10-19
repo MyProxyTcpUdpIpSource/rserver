@@ -17,6 +17,7 @@ import (
 	mr "math/rand"
 	"os"
 	"time"
+	"crypto/sha256"
 )
 
 var Servers = []string{"8.8.8.8", "8.8.4.4"}
@@ -159,11 +160,13 @@ func (c *Crypto) GetCipher() (cipher.Block, error) {
 	// TODO: better way to padding here
 	if len(c.Password) < m.keyLen {
 		pad := m.keyLen - len(c.Password)
+		// get checksum
+		sum := sha256.Sum256([]byte(c.Password))
 		if err != nil {
 			panic(err)
 		}
 		for i := 0; i < pad; i++ {
-			c.Password += " "
+			c.Password += string(sum[i])
 		}
 	}
 	var key []byte
@@ -193,8 +196,10 @@ func (c *Crypto) Encrypt(plaintext []byte) ([]byte, error) {
 	if len(plaintext)%aes.BlockSize != 0 {
 		m := len(plaintext) % aes.BlockSize
 		p := aes.BlockSize - m
+		// get checksum
+		sum := sha256.Sum256(plaintext)
 		for i := 0; i < p; i++ {
-			plaintext = append(plaintext, 0x0)
+			plaintext = append(plaintext, sum[i])
 		}
 	}
 
