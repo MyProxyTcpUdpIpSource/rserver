@@ -14,4 +14,7 @@ tar:
 	@rm -f app.gz.tar rserver
 	@tar -vzcf app.gz.tar *
 
+install:
+	@mv ./rserver /usr/local/bin
+
 .PHONY: tar

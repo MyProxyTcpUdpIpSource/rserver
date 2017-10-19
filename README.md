@@ -5,13 +5,15 @@
 
  * In client mode
  
-	 `./rserver -AsClient -Address :1080 -Password="Im-Having-An-Existential-Crisis" -RemoteServer=1.2.3.4:5000 # You can add multiple servers when you write config file`
+	 `./rserver -AsClient -Address :1080 -Password="Im-Having-An-Existential-Crisis" -Method=aes-128-cfb -RemoteServer=1.2.3.4:5000 # You can add multiple servers when you write config file`
 
 	
  * In server mode
  
-	 `./rserver -AsServer -Address=:5000  -Password="Im-Having-An-Existential-Crisis" `
-  
+	 `./rserver -AsServer -Address=:5000  -Password="Im-Having-An-Existential-Crisis"  -Method=aes-128-cfb`
+	 
+ Currently supported encryption methods are aes-128-cfb, aes-192-cfb and aes-256-cfb.
+ 
 # DESCRIPTION
 `rserver` is a network relay server that can handle TCP connections and could bypass a firewall. `rserver` follows SOCKS5 protocol and thus, you can work with `rserver` using commands such as `curl`:
 `curl --socks5 127.0.0.1:1080 google.com -vvv -L` Of course, you can also put SOCKS5 address into browsers.
@@ -37,7 +39,7 @@ $ cat client.json
 	"myserver1:8080",
 	"myserver2:9000",
 	"myserver3:7979"	
-	]
+	],
 }
 
 ./rserver -C client.json
@@ -51,7 +53,6 @@ $ cat remote.json
 	"log": "/var/log/rserver.log",
 	"method": "aes-192-cfb",
 	"password": "I'm-having-a-wonderful-day-so-far",
-	"verbose": 1
 }
 	
 ./rserver -C client.json

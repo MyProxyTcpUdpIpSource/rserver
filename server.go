@@ -155,7 +155,7 @@ func parseArgs() args {
 	flag.StringVar(&a.serverAddr, "Address", "127.0.0.1:1080", "server address")
 	flag.StringVar(&a.method, "Method", "aes-256-cfb", "encryption method")
 	flag.StringVar(&a.config, "Config", "./config.json", "path to config file")
-	flag.StringVar(&a.password, "Password", "I-am-having-an-existential-crisis", "passphrase to authorise clients")
+	flag.StringVar(&a.password, "Password", "I-am-too-lame-to-set-a-password", "passphrase to authorise clients")
 	flag.StringVar(&a.logfile, "Logfile", "/var/log/rserver.log", "path to log file")
 	flag.IntVar(&a.verbose, "Verbose", 1, "logging verbose level")
 
@@ -344,7 +344,7 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 			return err
 		}
 
-		logging(conf, "INFO ", "connecting %v", sock.String())
+		logging(conf, "INFO ", "connecting %v from %v", sock.String(), c.RemoteAddr())
 		// this is important. use read buffer so that we can refresh data
 		sock.reqbuf = c
 		return remoteRead(c, sock)
@@ -371,7 +371,7 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 		return err
 	}
 
-	if head[0] != uint8(5) { // seems illegal request?
+	if head[0] != uint8(5) { // protocol doesn't match. this ain't SOCKS5 request
 		return nil
 	}
 
@@ -380,7 +380,7 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 	sock, err := parseHeader(c, true)
 
 	if err != nil {
-		// could not parse a header?
+		// fail to parse SOCKS5 header
 		logging(conf, "ERROR ", err.Error())
 		return handleNetworkError(c, err)
 	}
@@ -398,7 +398,7 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 	} else {
 		logging(conf, "INFO ", "%v->%v", c.RemoteAddr(), sock.String())
 	}
-	
+
 	switch { // handle stagings
 	case uint8(head[1]) == CONNECTCMD:
 		logging(conf, "INFO ", "streamcmd")
@@ -456,7 +456,7 @@ type client interface {
 func handleNetworkError(c client, e error) error {
 	err := e.Error()
 
-	// ??
+	// empty net.Conn
 	if c == nil {
 		return e
 	}
