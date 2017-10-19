@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rand"
 	cr "crypto/rand"
 	"encoding/json"
 	"errors"
@@ -158,9 +159,15 @@ func (c *Crypto) GetCipher() (cipher.Block, error) {
 	// in case password length less than keyLen, so let's padding
 	// TODO: better way to padding here
 	if len(c.Password) < m.keyLen {
-		pad := m.keyLen - len(c.Password)
-		for i := 0; i < pad; i++ {
-			c.Password +=" "
+		l := m.keyLen - len(c.Password)
+		pad := make([]byte, l)
+		// padding value is totally at random
+		_, err := rand.Read(pad)
+		if err != nil {
+			panic(err)
+		}
+		for i := 0; i < l; i++ {
+			c.Password += string(pad[i])
 		}
 	}
 	var key []byte
@@ -192,7 +199,6 @@ func (c *Crypto) Encrypt(plaintext []byte) ([]byte, error) {
 		p := aes.BlockSize - m
 		for i := 0; i < p; i++ {
 			plaintext = append(plaintext, 0x0)
-
 		}
 	}
 
