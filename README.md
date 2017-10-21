@@ -63,6 +63,17 @@ $ cat remote.json
 # HOW THIS WORKS?
 `rserver` works pretty much simple. According to [rfc1928](https://tools.ietf.org/html/rfc1928), SOCKS5 servers should accept username and password based authentication from clients but since `rserver` can only talk between clients and remote servers, it is no longer necessary to implement that authentication. When clients get requests from users, clients soon encrypt SOCSK5's header and send it to a remote server and then remote server connects to a target and sends data back to clients. Header's first two bytes are reserved for the data length.
 
+# KNOWN SOCKS5 CLIENTS
+
+    bash
+	
+	#assuming rserver is running in client mode at port :1080...
+	$ ssh -l xun -p5000 -o ProxyCommand='nc -x localhost:1080 %h %p' server.net # this is useful when the network has aggressive port filterings.
+	
+	$ google-chrome proxy-server=socks://127.0.0.1:1080 # open Chrome browser with a proxy
+	
+	$ dropbox proxy manual socks5 127.0.0.1 1080  # configure dropbox with socks5
+	
 # TODO
  * Support UDP relay
  * Support UDP associate command.
