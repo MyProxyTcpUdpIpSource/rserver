@@ -82,13 +82,14 @@ func (c *Config) GetAServer() string {
 }
 
 func GetConf(path string) (*Config, error) {
-
 	c := &Config{}
 
 	f, err := os.OpenFile(path, os.O_RDONLY, 0600)
 	if err != nil {
 		return nil, nil
 	}
+
+	defer f.Close()
 
 	data := make([]byte, 1024)
 	n, err := f.Read(data)

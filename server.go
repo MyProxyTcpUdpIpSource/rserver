@@ -224,7 +224,6 @@ func main() {
 func eventLoop(conf *util.Config) error {
 	errCh := make(chan error)
 
-	// go udpRelay(errCh, conf)
 	go tcpRelay(errCh, conf)
 
 	for {
@@ -243,7 +242,6 @@ func udpRelay(errCh chan error, conf *util.Config) error {
 	var err error
 	var udpadr *net.UDPAddr
 
-	// port := conf.ServerPort
 	addr := conf.ServerAddr
 
 	udpadr, err = net.ResolveUDPAddr("udp", addr)
@@ -264,7 +262,6 @@ func udpRelay(errCh chan error, conf *util.Config) error {
 	for {
 		n, addr, err := conn.ReadFromUDP(rb)
 		errCh <- err
-		// ctx = newContext(context.Background(), newID())
 
 		go func(p chan []byte, d []byte) {
 			p <- d
@@ -278,7 +275,6 @@ func udpRelay(errCh chan error, conf *util.Config) error {
 func handleUDP(d chan []byte, conf *util.Config, c *net.UDPConn, addr *net.UDPAddr, ctx context.Context) error {
 	select {
 	case data := <-d:
-		// loggingInfo(ctx, "udp request: addr=%v data=%v", addr, data)
 		logging(conf, "INFO ", "udp request: addr=%v data=%v", addr, data)
 		sock, err := parseHeader(c, true)
 		if sock == nil || err != nil {

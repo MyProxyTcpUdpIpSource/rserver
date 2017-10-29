@@ -5,12 +5,11 @@
 
  * In client mode
  
-	 `./rserver -AsClient -Address :1080 -Password="Im-Having-An-Existential-Crisis" -Method=aes-128-cfb -RemoteServer=1.2.3.4:5000 # You can add multiple servers when you write config file`
-
+	 `./rserver -AsClient -Address :1080 -Password="Im-Having-An-Existential-Crisis" -RemoteServer=1.2.3.4:5000 # You can add multiple servers when you write config file`
 	
  * In server mode
  
-	 `./rserver -AsServer -Address=:5000  -Password="Im-Having-An-Existential-Crisis"  -Method=aes-128-cfb`
+	 `./rserver -AsServer -Address=:5000  -Password="Im-Having-An-Existential-Crisis"`
 	 
  Currently supported encryption methods are aes-128-cfb, aes-192-cfb and aes-256-cfb.
  
@@ -20,7 +19,7 @@
 Before you run any command, first you need to let client and remote server run. In remote you run `rserver` in server mode: `./rserver -AsServer -Address :5000 -Password this-is-password` and in local you run `rserver` in client mode: `./rserver -AsClient -Address 127.0.0.1:1080 -Password this-is-password -RemoteSever myserver.net:5000`.
 
 # BUILD
-You cat get `rserver` with `go get github.com/luSunn/rserver` and then can build it with `make` or `go build`
+ `go get github.com/luSunn/rserver` and then you do `make` or `go build`
 
 # Load from config file
 
@@ -42,7 +41,7 @@ $ cat client.json
 	],
 }
 
-./rserver -C client.json
+$ ./rserver -C client.json
 
 # remote
 $ cat remote.json 
@@ -55,7 +54,7 @@ $ cat remote.json
 	"password": "I'm-having-a-wonderful-day-so-far",
 }
 	
-./rserver -C client.json
+$ ./rserver -C client.json
 
 
 ```
@@ -65,7 +64,7 @@ $ cat remote.json
 
 # KNOWN SOCKS5 CLIENTS
 
-    bash
+    
 	
 	#assuming rserver is running in client mode at port :1080...
 	$ ssh -l xun -p5000 -o ProxyCommand='nc -x localhost:1080 %h %p' server.net # this is useful when the network has aggressive port filterings.
