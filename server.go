@@ -236,6 +236,8 @@ func eventLoop(conf *util.Config) error {
 	}
 }
 
+// I believe there is no udp socks5 clients in the world but
+// in the future I will find out that client.
 func udpRelay(errCh chan error, conf *util.Config) error {
 	ctx := context.Background()
 
@@ -564,7 +566,7 @@ func handleConnect(c net.Conn, sock *socket, conf *util.Config) error {
 		return handleNetworkError(c, err) // may be server donw, server unreachable ...
 	}
 
-	// start encryption
+	// start to encrypt
 	cpt, err := conf.Encryption.Encrypt(buf.Bytes())
 	
 	if err != nil {
@@ -649,8 +651,6 @@ func parseHeader(r io.Reader, islocal bool) (*socket, error) {
 	}
 
 	sock.network = "tcp"
-
-	// ctx := context.Background()
 
 	// get a destination address.
 	switch addrt[3] {
