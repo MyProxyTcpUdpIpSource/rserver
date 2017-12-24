@@ -91,7 +91,7 @@ func GetConf(path string) (*Config, error) {
 
 	defer f.Close()
 
-	data := make([]byte, 1024)
+	data := make([]byte, 1024) /* File buffer for 1024 should be enough... */
 	n, err := f.Read(data)
 	if err != nil {
 		panic(err)
@@ -158,7 +158,6 @@ func (c *Crypto) GetCipher() (cipher.Block, error) {
 	}
 
 	// in case password length less than keyLen, so let's padding
-	// TODO: better way to padding here
 	if len(c.Password) < m.keyLen {
 		pad := m.keyLen - len(c.Password)
 		// get checksum
@@ -257,4 +256,44 @@ func (c *Crypto) Decrypt(ciphertext []byte) ([]byte, error) {
 	mode.CryptBlocks(ciphertext, ciphertext)
 
 	return ciphertext, nil
+}
+
+// Least recently used cache!
+type LRUCache struct {
+	Timeout time.Duration;
+	store map[string]string;
+	start time.Time;
+	last time.Time;
+};
+
+
+func (l *LRUCache) SetTimeout(t time.Duration) {
+	l.Timeout = t
+}
+
+func (l *LRUCache) setTimeout() {
+	if l.Timeout == time.Duration(0) {
+		l.SetTimeout(time.Millisecond * 3000)
+	}
+}
+
+func (l *LRUCache) GetItem(key string) string {
+	return l.store[key]
+}
+
+func (l *LRUCache) SetItem(key string, value string) {
+	now := time.Now()
+	l.store = make(map[string]string) // allocate memory
+	l.store[key] = value
+	l.start = now
+}
+
+func (l *LRUCache) DeleteItem(key string) {
+}
+
+func (l *LRUCache) Sweep() {
+}
+
+func (l *LRUCache) Len() int {
+	return len(l.store)
 }
