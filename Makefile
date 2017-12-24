@@ -4,8 +4,11 @@ GOLDFLAGS="-X main.branch $(BRANCH) -X main.commit $(COMMIT)"
 
 PROGRAM=rserver
 
-all:
-	@go build -v -o $(PROGRAM)
+$(PROGRAM):
+	@go build -v -o $@
+
+clean:
+	$(RM) $(PROGRAM)
 
 test:
 	@go test -v ./util/
