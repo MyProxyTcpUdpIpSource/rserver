@@ -132,3 +132,15 @@ func TestGetAServer(t *testing.T) {
 	}
 	t.Log(s)
 }
+
+// Cache test
+var cacheData = []string{
+	"a", "b", "c",
+}
+
+func TestCache(t *testing.T) {
+	cache := &LRUCache{}
+	cache.SetItem("key", "value")
+	t.Log(cache.start)
+	t.Log(cache.GetItem("key"))
+}
