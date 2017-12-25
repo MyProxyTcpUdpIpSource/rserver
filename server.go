@@ -1,3 +1,4 @@
+--------------
 // Use of this source code is governed by a
 // license that can be found in the LICENSE file.
 
@@ -698,7 +699,7 @@ func parseHeader(r io.Reader, islocal bool) (*socket, error) {
 					return nil, err
 				}
 			}
-			ips, err := util.DnsResolver(string(dom), sock.ctx)
+			ips, err := util.ResolveName(string(dom), sock.ctx)
 			if err != nil {
 				return nil, err
 			}

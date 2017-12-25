@@ -22,16 +22,22 @@ import (
 
 var Servers = []string{"8.8.8.8", "8.8.4.4"}
 
-// DnsResolver resolves domain names.
-func DnsResolver(host string, ctx context.Context) ([]net.IP, error) {
+// ResolveName resolves domain names.
+func ResolveName(host string, ctx context.Context) ([]net.IP, error) {
 
-	var ips []net.IP
+	r := DNSResolver(true)
+	
+	addrs, err := r.LookupIPAddr(ctx, host)
 
-	ips, err := net.LookupIP(host)
+	//convert to net.IP
+	ips := make([]net.IP, len(addrs))
+	for i, ia := range addrs {
+		ips[i] = ia.IP
+	}
 
 	// failed to parse doamin?
 	if len(ips) == 0 {
-		return nil, errors.New("DnsResolver: cannot parse doamin")
+		return nil, errors.New("ResolveName: cannot parse doamin")
 	}
 
 	if err != nil {
@@ -44,6 +50,8 @@ func DnsResolver(host string, ctx context.Context) ([]net.IP, error) {
 	return ips, nil
 }
 
+// TODO:
+//   hack go's default dns resolver
 func DNSResolver(p bool) *net.Resolver {
 	r := &net.Resolver{}
 	switch p {

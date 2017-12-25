@@ -14,7 +14,7 @@ var hosts = []string{
 
 func TestResolver(t *testing.T) {
 	for _, h := range hosts {
-		ips, er := DnsResolver(h, context.Background())
+		ips, er := ResolveName(h, context.Background())
 		if er != nil {
 			t.Fatal(er)
 		}
