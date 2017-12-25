@@ -75,4 +75,3 @@ $ ./rserver -C client.json
  * Support UDP relay
  * Support UDP associate command.
  * Wrap whole connection with proper encryption method so that we can perfectly bypass firewall.
- * custom DNS options: I want to use google's 8.8.8.8 or 8.8.4.4 dns server instead of defualt dns.
