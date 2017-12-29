@@ -101,6 +101,9 @@ func ResolveName(host string, ctx context.Context, lru *LRUCache, pref bool) ([]
 	}
 
 	// This is actually a very expensive task, so let's cache
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	addrs, err := r.LookupIPAddr(ctx, host)
 	ips := make([]net.IP, len(addrs))
 	
