@@ -11,26 +11,99 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	cr "crypto/rand"
+	mr "math/rand"	
 	"encoding/json"
 	"errors"
 	"io"
-	mr "math/rand"
 	"os"
 	"time"
 	"crypto/sha256"
+	"container/list"
+	"sync"
 )
 
-var Servers = []string{"8.8.8.8", "8.8.4.4"}
+// Intended thread-safe
+// A great absolutely magical library is here:
+//           `go get github.com/hashicorp/golang-lru/`
+type LRUCache struct {
+	lock       sync.RWMutex
+	MaxSize    int
+	items      map[interface{}]*list.Element
+	root       *list.List
+}
+
+func NewLRU(max int) (*LRUCache) {
+	l := &LRUCache{
+		MaxSize:    max,
+		items:      make(map[interface{}]*list.Element),
+		root:       list.New(),
+	}
+
+	return l
+}
+
+type entry struct {
+	key   interface{}
+	value interface{}
+}
+
+// Returns true if elems are added up to MaxSize
+func (l *LRUCache) SetItem(key, value interface{}) bool {
+		
+	if ent, ok := l.items[key]; ok {
+		// Item exsits or blocked by size policy.
+		l.root.MoveToFront(ent)
+		ent.Value.(*entry).value = value
+		return false
+	}
+	
+	// Add new item
+	l.lock.Lock()
+
+	e := &entry{key, value}
+	_entry := l.root.PushFront(e)
+	l.items[key] = _entry
+
+	ok := l.root.Len() > l.MaxSize
+
+	if ok {
+		_e := l.root.Back()
+		delete(l.items, _e.Value.(*entry).key)
+		l.root.Remove(l.root.Back())		
+	}
+
+	l.lock.Unlock()
+
+	return ok
+}
+
+func (l *LRUCache) GetItem(key interface{}) interface{} {
+	if item, ok  := l.items[key]; ok {
+		l.root.MoveToFront(item)
+		return item.Value.(*entry).value
+	}
+	return nil
+}
+
+func (l *LRUCache) Len() int {
+	return len(l.items)
+}
 
 // ResolveName resolves domain names.
-func ResolveName(host string, ctx context.Context) ([]net.IP, error) {
+func ResolveName(host string, ctx context.Context, lru *LRUCache, pref bool) ([]net.IP, error) {
 
-	r := DNSResolver(true)
+	r := DNSResolver(pref)
 	
-	addrs, err := r.LookupIPAddr(ctx, host)
+	if ip, ok := (lru.GetItem(host)).(net.IP); ok {
+		ips := make([]net.IP, 1)
+		ips = append(ips, ip)
+		return ips, nil
+	}
 
-	//convert to net.IP
+	// This is actually a very expensive task, so let's cache
+	addrs, err := r.LookupIPAddr(ctx, host)
 	ips := make([]net.IP, len(addrs))
+	
 	for i, ia := range addrs {
 		ips[i] = ia.IP
 	}
@@ -40,13 +113,13 @@ func ResolveName(host string, ctx context.Context) ([]net.IP, error) {
 		return nil, errors.New("ResolveName: cannot parse doamin")
 	}
 
+	// Cache ip
+	lru.SetItem(host, ips[0])
+	
 	if err != nil {
 		return ips, nil
 	}
 
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	return ips, nil
 }
 
@@ -58,6 +131,17 @@ func DNSResolver(p bool) *net.Resolver {
 	case p:
 		r.PreferGo = true
 		r.StrictErrors = true
+		break
+	default:
+		// Experimental!
+		r.PreferGo = false
+		r.StrictErrors = true
+		r.Dial = func(ctx context.Context, network, address string) (net.Conn, error){
+			ctx = context.Background()
+			network = "udp"
+			address = "8.8.8.8"
+			return net.Dial(network, address)
+		}
 	}
 	return r
 }
@@ -111,7 +195,7 @@ func GetConf(path string) (*Config, error) {
 	}
 	// avoid 'no such file or directory error'
 	if c.Logfile == "" {
-		c.Logfile = "/var/log/rserver.log"
+		c.Logfile = "./rserver.log"
 	}
 	cpt := &Crypto{Password: c.Password, Method: c.Method}
 
@@ -264,44 +348,4 @@ func (c *Crypto) Decrypt(ciphertext []byte) ([]byte, error) {
 	mode.CryptBlocks(ciphertext, ciphertext)
 
 	return ciphertext, nil
-}
-
-// Least recently used cache!
-type LRUCache struct {
-	Timeout time.Duration;
-	store map[string]string;
-	start time.Time;
-	last time.Time;
-};
-
-
-func (l *LRUCache) SetTimeout(t time.Duration) {
-	l.Timeout = t
-}
-
-func (l *LRUCache) setTimeout() {
-	if l.Timeout == time.Duration(0) {
-		l.SetTimeout(time.Millisecond * 3000)
-	}
-}
-
-func (l *LRUCache) GetItem(key string) string {
-	return l.store[key]
-}
-
-func (l *LRUCache) SetItem(key string, value string) {
-	now := time.Now()
-	l.store = make(map[string]string) // allocate memory
-	l.store[key] = value
-	l.start = now
-}
-
-func (l *LRUCache) DeleteItem(key string) {
-}
-
-func (l *LRUCache) Sweep() {
-}
-
-func (l *LRUCache) Len() int {
-	return len(l.store)
 }

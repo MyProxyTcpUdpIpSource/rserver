@@ -13,12 +13,18 @@ var hosts = []string{
 }
 
 func TestResolver(t *testing.T) {
+	lru := NewLRU(100)	
 	for _, h := range hosts {
-		ips, er := ResolveName(h, context.Background())
+		_, er := ResolveName(h, context.Background(), lru, true)
 		if er != nil {
 			t.Fatal(er)
 		}
-		t.Logf("%s ips: %v", h, ips)
+		// this may not work under some firewall policy
+		fromGoogle, er := ResolveName(h, context.Background(), lru, false)
+		if er != nil {
+			t.Fatal(er)
+		}
+		t.Log(fromGoogle)
 	}
 }
 
@@ -133,14 +139,68 @@ func TestGetAServer(t *testing.T) {
 	t.Log(s)
 }
 
-// Cache test
-var cacheData = []string{
-	"a", "b", "c",
+
+var items = []struct {
+	key string
+	value string
+}{
+	{"key1", "value1",}, // oldest item
+	{"key2", "value2",},
+	{"key3", "value3",},
+	{"key4", "value4",},
+	{"key5", "value5",}, // latest item
 }
 
-func TestCache(t *testing.T) {
-	cache := &LRUCache{}
-	cache.SetItem("key", "value")
-	t.Log(cache.start)
-	t.Log(cache.GetItem("key"))
+
+func TestSetItems(t *testing.T) {
+
+	var elem = struct {
+		key   string
+		value string
+	}{
+		"thisKey", "thisValue",
+	}
+	
+	var anotherElem = struct {
+		key   string
+		value string
+	}{
+		"anotherKey", "anotherValue",
+	}
+	
+	cache := NewLRU(2) // Cannot go up to 2 elements
+	
+ 	if ok := cache.SetItem(elem.key, elem.value); ok {
+		t.Fatal("SetItem")
+	}
+
+	// Duplicated items are not allowed to exist.
+	cache.SetItem(elem.key, elem.value)
+	if (!(cache.Len() == 1)) {
+		t.Fatal("SetItem")		
+	}
+
+	if ok := cache.SetItem(anotherElem.key, anotherElem.value); ok {
+		t.Fatal("SetItem anotherelem")
+	}
+	
+	// Up to 3 elems, and then last elem will be removed
+	cache.SetItem(items[1].key, items[1].value)
+
+	// Oldest items should have been removed
+	if (!(cache.GetItem(elem.key) == nil)) {
+		t.Fatal("thisKey should've been removed!")
+	}
+}
+
+
+func TestGetItems(t *testing.T) {
+	c := NewLRU(5)
+	for i := 0; i < 5; i++ {
+		ite := items[i]
+		c.SetItem(ite.key, ite.value)
+	}
+	if (c.GetItem(items[1].key) == nil) {
+		t.Fatal("GetItem")
+	}
 }
