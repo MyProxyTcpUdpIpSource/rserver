@@ -54,7 +54,7 @@ const TCP_BUFFER = 32 * 1024
 
 const UDP_BUFFER = 2 ^ 16
 
-type socket struct {
+type sockconn struct {
 	ip       net.IP
 	port     int
 	addrType uint8
@@ -64,11 +64,11 @@ type socket struct {
 	ctx      context.Context
 }
 
-func (s *socket) dial() (net.Conn, error) {
+func (s *sockconn) dial() (net.Conn, error) {
 	return net.Dial(s.network, s.String())
 }
 
-func (s *socket) String() string {
+func (s *sockconn) String() string {
 	return net.JoinHostPort(s.ip.String(), strconv.Itoa(s.port))
 }
 
@@ -420,7 +420,7 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 }
 
 // remoteRead reads data from clients and send it back to clients.
-func remoteRead(c net.Conn, sock *socket) error {
+func remoteRead(c net.Conn, sock *sockconn) error {
 	dst, err := sock.dial()
 	
 	if err != nil {
@@ -474,8 +474,8 @@ func handleNetworkError(c client, e error) error {
 	return e
 }
 
-// handleStreams takes cli that is io.Writer and *socket.
-func handleStream(cli client, sock *socket) error {
+// handleStreams takes cli that is io.Writer and *sockconn.
+func handleStream(cli client, sock *sockconn) error {
 	dstconn, err := sock.dial()
 
 	if err != nil {
@@ -498,8 +498,8 @@ func handleStream(cli client, sock *socket) error {
 	return waitError(errCh, 2)
 }
 
-// creteRemoteSecureSocket creates a gateway to a remote server.
-func handleConnect(c net.Conn, sock *socket, conf *util.Config) error {
+// creteRemoteSecureSockconn creates a gateway to a remote server.
+func handleConnect(c net.Conn, sock *sockconn, conf *util.Config) error {
 	var b []byte
 
 	buf := bytes.NewBuffer(b)
@@ -538,7 +538,7 @@ func handleConnect(c net.Conn, sock *socket, conf *util.Config) error {
 		return err
 	}
 
-	rmsock := &socket{} // create remote socket
+	rmsock := &sockconn{} // create remote sockconn
 
 	rmsock.network = "tcp"
 
@@ -624,7 +624,7 @@ func writeToSock(dst io.Writer, src io.Reader, errch chan error, ctx context.Con
 	errch <- err
 }
 
-func handleBind(c net.Conn, sock *socket, conf *util.Config) error {
+func handleBind(c net.Conn, sock *sockconn, conf *util.Config) error {
 	return handleConnect(c, sock, conf)
 }
 
@@ -636,10 +636,14 @@ type responseBuffer []byte
 
 var hang = func(i ...interface{}) { log.Println("hang ", i) }
 
-// parseHeader parses header and gives a socket back.
+// parseHeader parses header and gives a sockconn back.
 // unknow requests should be blocked here.
-func parseHeader(r io.Reader, islocal bool) (*socket, error) {
-	sock := &socket{}
+func parseHeader(r io.Reader, islocal bool) (*sockconn, error) {
+
+	// LRU cache, up to 100 items..
+	lru := util.NewLRU(100)
+
+	sock := &sockconn{}
 
 	sock.reqbuf = r
 
@@ -698,7 +702,7 @@ func parseHeader(r io.Reader, islocal bool) (*socket, error) {
 					return nil, err
 				}
 			}
-			ips, err := util.ResolveName(string(dom), sock.ctx)
+			ips, err := util.ResolveName(string(dom), sock.ctx, lru, true)
 			if err != nil {
 				return nil, err
 			}
