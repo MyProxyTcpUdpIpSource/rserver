@@ -94,16 +94,18 @@ func ResolveName(host string, ctx context.Context, lru *LRUCache, pref bool) ([]
 
 	r := DNSResolver(pref)
 	
+	// This is actually a very expensive task,
+	// so let's lookup from cache
 	if ip, ok := (lru.GetItem(host)).(net.IP); ok {
 		ips := make([]net.IP, 1)
-		ips = append(ips, ip)
+		ips[0] = ip
 		return ips, nil
 	}
 
-	// This is actually a very expensive task, so let's cache
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
 	addrs, err := r.LookupIPAddr(ctx, host)
 	ips := make([]net.IP, len(addrs))
 	
