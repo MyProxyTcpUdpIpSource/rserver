@@ -49,6 +49,9 @@ type entry struct {
 
 // Returns true if elems are added up to MaxSize
 func (l *LRUCache) SetItem(key, value interface{}) bool {
+	
+	l.lock.Lock()
+	defer l.lock.Unlock()
 		
 	if ent, ok := l.items[key]; ok {
 		// Item exsits or blocked by size policy.
@@ -58,8 +61,6 @@ func (l *LRUCache) SetItem(key, value interface{}) bool {
 	}
 	
 	// Add new item
-	l.lock.Lock()
-
 	e := &entry{key, value}
 	_entry := l.root.PushFront(e)
 	l.items[key] = _entry
@@ -71,13 +72,13 @@ func (l *LRUCache) SetItem(key, value interface{}) bool {
 		delete(l.items, _e.Value.(*entry).key)
 		l.root.Remove(l.root.Back())		
 	}
-
-	l.lock.Unlock()
-
 	return ok
 }
 
 func (l *LRUCache) GetItem(key interface{}) interface{} {
+	
+	l.lock.Lock()
+	defer l.lock.Unlock()
 
 	if item, ok  := l.items[key]; ok {
 		l.root.MoveToFront(item)
