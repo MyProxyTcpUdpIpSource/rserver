@@ -78,10 +78,12 @@ func (l *LRUCache) SetItem(key, value interface{}) bool {
 }
 
 func (l *LRUCache) GetItem(key interface{}) interface{} {
+
 	if item, ok  := l.items[key]; ok {
 		l.root.MoveToFront(item)
 		return item.Value.(*entry).value
 	}
+	
 	return nil
 }
 

@@ -327,7 +327,7 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 		}
 
 		pt, err := conf.Encryption.Decrypt(hbuf)
-		
+
 		// most of annoying requests are blocked here if cipheretext length is wrong
 		// or, of course, bad password a client provided is wrong
 		if err != nil {
@@ -422,7 +422,7 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 // remoteRead reads data from clients and send it back to clients.
 func remoteRead(c net.Conn, sock *sockconn) error {
 	dst, err := sock.dial()
-	
+
 	if err != nil {
 		return err
 	}
@@ -568,7 +568,7 @@ func handleConnect(c net.Conn, sock *sockconn, conf *util.Config) error {
 
 	// start to encrypt
 	cpt, err := conf.Encryption.Encrypt(buf.Bytes())
-	
+
 	if err != nil {
 		panic(err)
 	}
