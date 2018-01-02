@@ -113,6 +113,7 @@ func ResolveName(host string, ctx context.Context, lru *LRUCache, pref bool) ([]
 	ips := make([]net.IP, len(addrs))
 	
 	for i, ia := range addrs {
+		// refer to the pointer...
 		ips[i] = ia.IP
 	}
 
@@ -242,6 +243,7 @@ func GetMethodInfo(s string) (*method, error) {
 			m.key = ms.key
 			m.keyLen = ms.keyLen
 			m.ivLen = ms.ivLen
+			break;			
 		}
 	}
 	if m == nil {

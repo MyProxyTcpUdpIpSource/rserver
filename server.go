@@ -329,7 +329,7 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 		pt, err := conf.Encryption.Decrypt(hbuf)
 
 		// most of annoying requests are blocked here if cipheretext length is wrong
-		// or, of course, bad password a client provided is wrong
+		// or, of course, a password a client provided is wrong
 		if err != nil {
 			err = errors.New(fmt.Sprintf("%v: annoying requests or bad password from %v", err, c.RemoteAddr()))
 			logging(conf, "ERROR ", err.Error())
