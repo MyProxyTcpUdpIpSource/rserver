@@ -1,9 +1,9 @@
 package util
 
 import (
+	"bytes"
 	"context"
 	"testing"
-	"bytes"
 )
 
 var hosts = []string{
@@ -13,7 +13,7 @@ var hosts = []string{
 }
 
 func TestResolver(t *testing.T) {
-	lru := NewLRU(100)	
+	lru := NewLRU(100)
 	for _, h := range hosts {
 		_, er := ResolveName(h, context.Background(), lru, true)
 		if er != nil {
@@ -33,7 +33,7 @@ var cryptoData = []Crypto{
 	{"A party at which only losers showed up.", "aes-192-cfb"},
 	{"Believe me I'm having such a wonderful day.", "aes-256-cfb"},
 	{"Dolphins can change a diaper under water.", "aes-256-cfb"},
-	{"wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww", "aes-256-cfb"},	
+	{"wwwwwwwwwwwwwwwwwwwww", "aes-256-cfb"},
 }
 
 func TestGetMethod(t *testing.T) {
@@ -107,17 +107,24 @@ func TestDecrypt(t *testing.T) {
 	}
 }
 
-
 func TestEncryptAndDecrypt(t *testing.T) {
-	// notice the size of plaintext is 64 bytes
-	plaintext := []byte("I think I should be more discrete and fly over Paris tomorrow...")
-	_plaintext := make([]byte, len(plaintext))
-	copy(_plaintext, plaintext)
+	p1 := []byte("I think I should be more discrete and fly over Paris!")
+
+	p2 := make([]byte, len(p1))
+
+	copy(p2, p1)
+
 	crypt := &Crypto{"this-is-insecure-password", "aes-256-cfb"}
-	ciphertext, _ := crypt.Encrypt(plaintext)
+
+	ciphertext, _ := crypt.Encrypt(p1)
+
 	text, _ := crypt.Decrypt(ciphertext)
 
-	if !(bytes.Equal(_plaintext, text)) {
+	out := make([]byte, len(p1))
+
+	copy(out, text)
+
+	if !(bytes.Equal(p2, out)) {
 		t.Error("doesn't match")
 	}
 }
@@ -139,18 +146,16 @@ func TestGetAServer(t *testing.T) {
 	t.Log(s)
 }
 
-
 var items = []struct {
-	key string
+	key   string
 	value string
 }{
-	{"key1", "value1",}, // oldest item
-	{"key2", "value2",},
-	{"key3", "value3",},
-	{"key4", "value4",},
-	{"key5", "value5",}, // latest item
+	{"key1", "value1"}, // oldest item
+	{"key2", "value2"},
+	{"key3", "value3"},
+	{"key4", "value4"},
+	{"key5", "value5"}, // latest item
 }
-
 
 func TestSetItems(t *testing.T) {
 
@@ -160,39 +165,38 @@ func TestSetItems(t *testing.T) {
 	}{
 		"thisKey", "thisValue",
 	}
-	
+
 	var anotherElem = struct {
 		key   string
 		value string
 	}{
 		"anotherKey", "anotherValue",
 	}
-	
+
 	cache := NewLRU(2) // Cannot go up to 2 elements
-	
- 	if ok := cache.SetItem(elem.key, elem.value); ok {
+
+	if ok := cache.SetItem(elem.key, elem.value); ok {
 		t.Fatal("SetItem")
 	}
 
 	// Duplicated items are not allowed to exist.
 	cache.SetItem(elem.key, elem.value)
-	if (!(cache.Len() == 1)) {
-		t.Fatal("SetItem")		
+	if !(cache.Len() == 1) {
+		t.Fatal("SetItem")
 	}
 
 	if ok := cache.SetItem(anotherElem.key, anotherElem.value); ok {
 		t.Fatal("SetItem anotherelem")
 	}
-	
+
 	// Up to 3 elems, and then last elem will be removed
 	cache.SetItem(items[1].key, items[1].value)
 
 	// Oldest items should have been removed
-	if (!(cache.GetItem(elem.key) == nil)) {
+	if !(cache.GetItem(elem.key) == nil) {
 		t.Fatal("thisKey should've been removed!")
 	}
 }
-
 
 func TestGetItems(t *testing.T) {
 	c := NewLRU(5)
@@ -200,7 +204,7 @@ func TestGetItems(t *testing.T) {
 		ite := items[i]
 		c.SetItem(ite.key, ite.value)
 	}
-	if (c.GetItem(items[1].key) == nil) {
+	if c.GetItem(items[1].key) == nil {
 		t.Fatal("GetItem")
 	}
 }

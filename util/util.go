@@ -8,35 +8,36 @@ import (
 	"net"
 
 	"bytes"
+	"container/list"
 	"crypto/aes"
 	"crypto/cipher"
 	cr "crypto/rand"
-	mr "math/rand"	
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
+	mr "math/rand"
 	"os"
-	"time"
-	"crypto/sha256"
-	"container/list"
 	"sync"
+	"time"
 )
 
 // Intended thread-safe
 // A great absolutely magical library is here:
 //           `go get github.com/hashicorp/golang-lru/`
 type LRUCache struct {
-	lock       sync.RWMutex
-	MaxSize    int
-	items      map[interface{}]*list.Element
-	root       *list.List
+	lock    sync.RWMutex
+	MaxSize int
+	items   map[interface{}]*list.Element
+	root    *list.List
 }
 
-func NewLRU(max int) (*LRUCache) {
+func NewLRU(max int) *LRUCache {
 	l := &LRUCache{
-		MaxSize:    max,
-		items:      make(map[interface{}]*list.Element),
-		root:       list.New(),
+		MaxSize: max,
+		items:   make(map[interface{}]*list.Element),
+		root:    list.New(),
 	}
 
 	return l
@@ -49,17 +50,17 @@ type entry struct {
 
 // Returns true if elems are added up to MaxSize
 func (l *LRUCache) SetItem(key, value interface{}) bool {
-	
+
 	l.lock.Lock()
 	defer l.lock.Unlock()
-		
+
 	if ent, ok := l.items[key]; ok {
 		// Item exsits or blocked by size policy.
 		l.root.MoveToFront(ent)
 		ent.Value.(*entry).value = value
 		return false
 	}
-	
+
 	// Add new item
 	e := &entry{key, value}
 	_entry := l.root.PushFront(e)
@@ -70,21 +71,21 @@ func (l *LRUCache) SetItem(key, value interface{}) bool {
 	if ok {
 		_e := l.root.Back()
 		delete(l.items, _e.Value.(*entry).key)
-		l.root.Remove(l.root.Back())		
+		l.root.Remove(l.root.Back())
 	}
 	return ok
 }
 
 func (l *LRUCache) GetItem(key interface{}) interface{} {
-	
+
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
-	if item, ok  := l.items[key]; ok {
+	if item, ok := l.items[key]; ok {
 		l.root.MoveToFront(item)
 		return item.Value.(*entry).value
 	}
-	
+
 	return nil
 }
 
@@ -96,7 +97,7 @@ func (l *LRUCache) Len() int {
 func ResolveName(host string, ctx context.Context, lru *LRUCache, pref bool) ([]net.IP, error) {
 
 	r := DNSResolver(pref)
-	
+
 	// This is actually a very expensive task,
 	// so let's lookup from cache
 	if ip, ok := (lru.GetItem(host)).(net.IP); ok {
@@ -111,7 +112,7 @@ func ResolveName(host string, ctx context.Context, lru *LRUCache, pref bool) ([]
 
 	addrs, err := r.LookupIPAddr(ctx, host)
 	ips := make([]net.IP, len(addrs))
-	
+
 	for i, ia := range addrs {
 		// refer to the pointer...
 		ips[i] = ia.IP
@@ -124,7 +125,7 @@ func ResolveName(host string, ctx context.Context, lru *LRUCache, pref bool) ([]
 
 	// Cache ip
 	lru.SetItem(host, ips[0])
-	
+
 	if err != nil {
 		return ips, nil
 	}
@@ -145,7 +146,7 @@ func DNSResolver(p bool) *net.Resolver {
 		// Experimental!
 		r.PreferGo = false
 		r.StrictErrors = true
-		r.Dial = func(ctx context.Context, network, address string) (net.Conn, error){
+		r.Dial = func(ctx context.Context, network, address string) (net.Conn, error) {
 			ctx = context.Background()
 			network = "udp"
 			address = "8.8.8.8"
@@ -234,7 +235,6 @@ type Crypto struct {
 }
 
 func GetMethodInfo(s string) (*method, error) {
-
 	m := &method{}
 
 	for _, ms := range methods {
@@ -243,12 +243,14 @@ func GetMethodInfo(s string) (*method, error) {
 			m.key = ms.key
 			m.keyLen = ms.keyLen
 			m.ivLen = ms.ivLen
-			break;			
+			break
 		}
 	}
+
 	if m == nil {
 		return nil, errors.New("Method not supported")
 	}
+
 	return m, nil
 }
 
@@ -259,8 +261,7 @@ func (c *Crypto) GetCipher() (cipher.Block, error) {
 		return nil, err
 	}
 
-	// in case password length less than keyLen, so let's padding
-	if len(c.Password) < m.keyLen {
+	if len(c.Password)%m.keyLen != 0 {
 		pad := m.keyLen - len(c.Password)
 		// get checksum
 		sum := sha256.Sum256([]byte(c.Password))
@@ -271,19 +272,26 @@ func (c *Crypto) GetCipher() (cipher.Block, error) {
 			c.Password += string(sum[i])
 		}
 	}
+
 	var key []byte
+
 	buf := bytes.NewBuffer(key)
+
 	i := 0
+
 	for {
 		if m.keyLen-1 < len(buf.Bytes()) {
 			break
 		}
 		err := buf.WriteByte([]byte(c.Password)[i])
+
 		if err != nil {
 			return nil, err
 		}
+
 		i++
 	}
+
 	return aes.NewCipher(buf.Bytes())
 }
 
@@ -296,6 +304,7 @@ func (c *Crypto) Encrypt(plaintext []byte) ([]byte, error) {
 	}
 	// padding..
 	if len(plaintext)%aes.BlockSize != 0 {
+		log.Println("padding")
 		m := len(plaintext) % aes.BlockSize
 		p := aes.BlockSize - m
 		// get checksum
@@ -310,7 +319,9 @@ func (c *Crypto) Encrypt(plaintext []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	block, err := c.GetCipher()
+
 	if err != nil {
 		return nil, err
 	}
