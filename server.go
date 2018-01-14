@@ -77,11 +77,18 @@ var Usage = func() {
 	text := `rserver - relay server in Go
 Usage:
 
-rserver rserver [-AsClient -Address=:1080 -RemoteServer=<remote-server> -Password=<password> ] [ -AsServer -Address=<remote-server> -Password=<password> ] [-Config <path-to-config> ]
+ Synopsis:
+          rserver COMMAND
 
+ Commands:
+  -AsClient      run server in client mode
+  -AsServer      run server in Server mode
+  -Address       server address 
+  -RemoteServer  remote server address
+  -Password      password to encrypt/decrypt
+  -Config        path to config file
 `
 	fmt.Fprintf(os.Stderr, text)
-	flag.PrintDefaults()
 }
 
 type args struct {
@@ -331,7 +338,8 @@ func handleStageConnections(c net.Conn, conf *util.Config) error {
 		// most of annoying requests are blocked here if cipheretext length is wrong
 		// or, of course, a password a client provided is wrong
 		if err != nil {
-			err = errors.New(fmt.Sprintf("%v: annoying requests or bad password from %v", err, c.RemoteAddr()))
+			err = errors.New(fmt.Sprintf(
+				"%v: annoying requests or bad password from %v", err, c.RemoteAddr()))
 			logging(conf, "ERROR ", err.Error())
 			return err
 		}
