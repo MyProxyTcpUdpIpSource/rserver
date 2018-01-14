@@ -16,7 +16,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	mr "math/rand"
 	"os"
 	"sync"
@@ -304,7 +303,6 @@ func (c *Crypto) Encrypt(plaintext []byte) ([]byte, error) {
 	}
 	// padding..
 	if len(plaintext)%aes.BlockSize != 0 {
-		log.Println("padding")
 		m := len(plaintext) % aes.BlockSize
 		p := aes.BlockSize - m
 		// get checksum
@@ -369,4 +367,19 @@ func (c *Crypto) Decrypt(ciphertext []byte) ([]byte, error) {
 	mode.CryptBlocks(ciphertext, ciphertext)
 
 	return ciphertext, nil
+}
+
+func (c *Crypto) Equal(plaintext, ciphertext []byte) bool {
+	p, _ := c.Decrypt(ciphertext)
+	
+	if (len(plaintext) % aes.BlockSize != 0) {
+		m := len(plaintext) % aes.BlockSize
+		p := aes.BlockSize - m
+		sum := sha256.Sum256(plaintext)
+		for i := 0; i < p; i++ {
+			plaintext = append(plaintext, sum[i])
+		}
+	}
+	
+	return bytes.Equal(plaintext, p)
 }

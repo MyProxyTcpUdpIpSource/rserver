@@ -1,7 +1,6 @@
 package util
 
 import (
-	"bytes"
 	"context"
 	"testing"
 )
@@ -108,24 +107,21 @@ func TestDecrypt(t *testing.T) {
 }
 
 func TestEncryptAndDecrypt(t *testing.T) {
-	p1 := []byte("I think I should be more discrete and fly over Paris!")
-
-	p2 := make([]byte, len(p1))
-
-	copy(p2, p1)
-
+	p1 := []byte("I think I should be more discrete and fly over Berlin!")
+	
 	crypt := &Crypto{"this-is-insecure-password", "aes-256-cfb"}
-
 	ciphertext, _ := crypt.Encrypt(p1)
 
-	text, _ := crypt.Decrypt(ciphertext)
+	wrong := &Crypto{"totaly stupid password", "aes-256-cfb"}	
+	ciphertext2, _ := wrong.Encrypt(p1)
 
-	out := make([]byte, len(p1))
-
-	copy(out, text)
-
-	if !(bytes.Equal(p2, out)) {
+		
+	if !(crypt.Equal(p1, ciphertext)) {
 		t.Error("doesn't match")
+	}
+
+	if (crypt.Equal(p1, ciphertext2)) {
+		t.Error("cannot be matched")
 	}
 }
 
