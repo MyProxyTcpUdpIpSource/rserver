@@ -4,7 +4,7 @@
 package util
 
 import (
-	"golang.org/x/net/context"
+	"context"
 	"net"
 
 	"bytes"

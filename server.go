@@ -11,7 +11,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"golang.org/x/net/context"
+	"context"
 	"io"
 	"log"
 	"net"
